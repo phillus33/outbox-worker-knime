@@ -5,14 +5,18 @@ import (
 	"time"
 )
 
+// MessageStatus represents the status of an outbox message.
 type MessageStatus string
 
+// MessageStatus values
 const (
 	StatusPending   MessageStatus = "pending"
 	StatusPublished MessageStatus = "published"
 	StatusFailed    MessageStatus = "failed"
 )
 
+// Message represents an outbox message with its metadata and payload.
+// SequenceNumber is used to guarantee FIFO message delivery.
 type Message struct {
 	ID             int64           `json:"id"`
 	Topic          string          `json:"topic"`

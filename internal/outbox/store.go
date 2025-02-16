@@ -13,6 +13,8 @@ var (
 	ErrSequenceGap     = errors.New("sequence gap detected")
 )
 
+// Store defines the interface for outbox message storage operations.
+// Implementations must ensure sequence number consistency for FIFO guarantees.
 type Store interface {
 	CreateMessage(ctx context.Context, tx *sql.Tx, topic string, payload json.RawMessage) (*Message, error)
 	GetPendingMessages(ctx context.Context, batchSize int) ([]*Message, error)
@@ -20,14 +22,19 @@ type Store interface {
 	MarkAsFailed(ctx context.Context, id int64) error
 }
 
+// PostgresStore implements the Store interface for PostgreSQL storage.
+// It ensures sequence number consistency for FIFO guarantees.
 type PostgresStore struct {
 	db *sql.DB
 }
 
+// NewPostgresStore creates a new PostgresStore instance
 func NewPostgresStore(db *sql.DB) *PostgresStore {
 	return &PostgresStore{db: db}
 }
 
+// CreateMessage inserts a new message into the outbox table
+// and returns the created message with its sequence number.
 func (s *PostgresStore) CreateMessage(ctx context.Context, tx *sql.Tx, topic string, payload json.RawMessage) (*Message, error) {
 	query := `
         INSERT INTO outbox_messages (topic, payload, status, sequence_number)
@@ -49,6 +56,8 @@ func (s *PostgresStore) CreateMessage(ctx context.Context, tx *sql.Tx, topic str
 	return msg, nil
 }
 
+// GetPendingMessages retrieves pending messages from the outbox table
+// sorted by sequence number in ascending order.
 func (s *PostgresStore) GetPendingMessages(ctx context.Context, batchSize int) ([]*Message, error) {
 	query := `
         SELECT id, topic, payload, created_at, status, sequence_number
@@ -83,6 +92,8 @@ func (s *PostgresStore) GetPendingMessages(ctx context.Context, batchSize int) (
 	return messages, rows.Err()
 }
 
+// MarkAsPublished updates the status of a message to published
+// and records the publication time.
 func (s *PostgresStore) MarkAsPublished(ctx context.Context, id int64) error {
 	query := `
         UPDATE outbox_messages
@@ -105,6 +116,8 @@ func (s *PostgresStore) MarkAsPublished(ctx context.Context, id int64) error {
 	return nil
 }
 
+// MarkAsFailed updates the status of a message to failed
+// and records the failure time.
 func (s *PostgresStore) MarkAsFailed(ctx context.Context, id int64) error {
 	query := `
         UPDATE outbox_messages

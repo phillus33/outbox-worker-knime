@@ -39,6 +39,7 @@ func SetupTestDB(t *testing.T) *sql.DB {
 		topic VARCHAR(255) NOT NULL,
 		payload BYTEA NOT NULL,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		published_at TIMESTAMP,
 		status VARCHAR(50) NOT NULL,
 		sequence_number INT NOT NULL
 	)`)
@@ -49,7 +50,4 @@ func SetupTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-func isDatabaseAlreadyExistsError(err error) bool {
-	// Check if the error indicates that the database already exists
-	return err != nil && err.Error() == "pq: database \"outbox_test\" already exists"
-}
+
