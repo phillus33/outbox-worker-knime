@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"sync"
 	"testing"
@@ -113,7 +114,6 @@ func TestFIFOMessageDelivery(t *testing.T) {
 	}
 	defer nc.Close()
 
-	// Create worker
 	worker := NewWorker(WorkerConfig{
 		Store:        store,
 		NatsConn:     nc,
@@ -122,16 +122,21 @@ func TestFIFOMessageDelivery(t *testing.T) {
 		IsLeader:     func() bool { return true },
 	})
 
-	// Track received messages
 	receivedMessages := make([]int64, 0)
 	var mu sync.Mutex
+	done := make(chan bool)
 
-	// Subscribe to test topic
 	_, err = nc.Subscribe("test.topic", func(msg *nats.Msg) {
 		var payload struct{ Seq int64 }
-		json.Unmarshal(msg.Data, &payload)
+		if err := json.Unmarshal(msg.Data, &payload); err != nil {
+			t.Errorf("Failed to unmarshal message: %v", err)
+			return
+		}
 		mu.Lock()
 		receivedMessages = append(receivedMessages, payload.Seq)
+		if len(receivedMessages) == 5 { // All messages received
+			done <- true
+		}
 		mu.Unlock()
 	})
 	if err != nil {
@@ -139,25 +144,26 @@ func TestFIFOMessageDelivery(t *testing.T) {
 	}
 
 	// Send messages with sequence numbers
-	ctx := context.Background()
 	for i := int64(1); i <= 5; i++ {
-		payload := struct{ Seq int64 }{Seq: i}
-		data, _ := json.Marshal(payload)
 		store.messages = append(store.messages, &Message{
 			ID:             i,
 			Topic:          "test.topic",
-			Payload:        data,
+			Payload:        []byte(fmt.Sprintf(`{"Seq":%d}`, i)),
 			SequenceNumber: i,
 			Status:         StatusPending,
 		})
 	}
 
-	// Start worker and wait for processing
+	ctx := context.Background()
 	worker.Start(ctx)
-	time.Sleep(100 * time.Millisecond)
-	worker.Stop()
 
-	// Verify order
+	select {
+	case <-done:
+		worker.Stop()
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for messages")
+	}
+
 	mu.Lock()
 	defer mu.Unlock()
 	for i, seq := range receivedMessages {

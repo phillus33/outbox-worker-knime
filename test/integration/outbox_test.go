@@ -36,10 +36,16 @@ func TestOutboxIntegration(t *testing.T) {
 		IsLeader:     func() bool { return true },
 	})
 
-	// Setup message receiving
-	receivedCh := make(chan []byte, 1)
+	messageReceived := make(chan bool)
 	_, err = nc.Subscribe("test.topic", func(msg *nats.Msg) {
-		receivedCh <- msg.Data
+		var payload map[string]interface{}
+		if err := json.Unmarshal(msg.Data, &payload); err != nil {
+			t.Errorf("Failed to unmarshal message: %v", err)
+			return
+		}
+		if payload["test"] == "integration" {
+			messageReceived <- true
+		}
 	})
 	if err != nil {
 		t.Fatalf("Failed to subscribe: %v", err)
@@ -48,12 +54,10 @@ func TestOutboxIntegration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Start worker
 	if err := worker.Start(ctx); err != nil {
 		t.Fatalf("Failed to start worker: %v", err)
 	}
 
-	// Send message
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatalf("Failed to begin transaction: %v", err)
@@ -62,6 +66,7 @@ func TestOutboxIntegration(t *testing.T) {
 	testMessage := map[string]string{"test": "integration"}
 	err = ob.SendMessage(ctx, tx, "test.topic", testMessage)
 	if err != nil {
+		tx.Rollback()
 		t.Fatalf("Failed to send message: %v", err)
 	}
 
@@ -69,18 +74,11 @@ func TestOutboxIntegration(t *testing.T) {
 		t.Fatalf("Failed to commit transaction: %v", err)
 	}
 
-	// Wait for message
 	select {
-	case received := <-receivedCh:
-		var receivedMsg map[string]string
-		if err := json.Unmarshal(received, &receivedMsg); err != nil {
-			t.Fatalf("Failed to unmarshal received message: %v", err)
-		}
-		if receivedMsg["test"] != "integration" {
-			t.Errorf("Expected message content 'integration', got '%s'", receivedMsg["test"])
-		}
+	case <-messageReceived:
+		// Success
 	case <-time.After(2 * time.Second):
-		t.Error("Timeout waiting for message")
+		t.Fatal("Timeout waiting for message")
 	}
 
 	worker.Stop()
