@@ -23,7 +23,13 @@ services:
   app1:
     build: .
     environment:
-      - INSTANCE_ID=1
+      INSTANCE_ID: "1"
+      DATABASE_URL: "postgres://outbox:outbox@postgres:5432/outbox?sslmode=disable"
+      DATABASE_MAX_CONNECTIONS: "10"
+      NATS_URL: "nats://nats:4222"
+      WORKER_POLL_INTERVAL: "1s"
+      WORKER_BATCH_SIZE: "100"
+      WORKER_MAX_RETRIES: "3"
     depends_on:
       - postgres
       - nats
@@ -31,7 +37,13 @@ services:
   app2:
     build: .
     environment:
-      - INSTANCE_ID=2
+      INSTANCE_ID: "1"
+      DATABASE_URL: "postgres://outbox:outbox@postgres:5432/outbox?sslmode=disable"
+      DATABASE_MAX_CONNECTIONS: "10"
+      NATS_URL: "nats://nats:4222"
+      WORKER_POLL_INTERVAL: "1s"
+      WORKER_BATCH_SIZE: "100"
+      WORKER_MAX_RETRIES: "3"
     depends_on:
       - postgres
       - nats
