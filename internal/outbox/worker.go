@@ -1,7 +1,12 @@
+// Package outbox implements the core worker functionality for the transactional
+// outbox pattern. It handles message polling, leader election, and guaranteed
+// FIFO delivery of messages to NATS.
+
 package outbox
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -9,6 +14,8 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
+// Worker handles the polling and publishing of messages from the outbox.
+// It ensures FIFO delivery and supports leader election for distributed deployments.
 type Worker struct {
 	store        Store
 	natsConn     *nats.Conn
@@ -20,6 +27,7 @@ type Worker struct {
 	stopCh       chan struct{}
 }
 
+// WorkerConfig provides configuration options for the Worker.
 type WorkerConfig struct {
 	Store        Store
 	NatsConn     *nats.Conn
@@ -92,23 +100,35 @@ func (w *Worker) processMessages(ctx context.Context) error {
 		return err
 	}
 
+	var lastProcessedSeq int64
 	for _, msg := range messages {
+		if lastProcessedSeq > 0 && msg.SequenceNumber != lastProcessedSeq+1 {
+			return ErrSequenceGap
+		}
+
 		if err := w.publishMessage(ctx, msg); err != nil {
 			log.Printf("Failed to publish message %d: %v", msg.ID, err)
-			if err := w.store.MarkAsFailed(ctx, msg.ID); err != nil {
-				log.Printf("Failed to mark message %d as failed: %v", msg.ID, err)
-			}
-			continue
+			return err // Return immediately to maintain FIFO
 		}
 
 		if err := w.store.MarkAsPublished(ctx, msg.ID); err != nil {
 			log.Printf("Failed to mark message %d as published: %v", msg.ID, err)
+			return err // Return immediately to maintain FIFO
 		}
-	}
 
+		lastProcessedSeq = msg.SequenceNumber
+	}
 	return nil
 }
 
 func (w *Worker) publishMessage(ctx context.Context, msg *Message) error {
-	return w.natsConn.Publish(msg.Topic, msg.Payload)
+	maxRetries := 3
+	for i := 0; i < maxRetries; i++ {
+		err := w.natsConn.Publish(msg.Topic, msg.Payload)
+		if err == nil {
+			return nil
+		}
+		time.Sleep(time.Second * time.Duration(i+1))
+	}
+	return fmt.Errorf("failed to publish after %d retries", maxRetries)
 }
