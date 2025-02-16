@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -17,6 +18,15 @@ import (
 )
 
 func main() {
+	// Add instance ID for logging
+	instanceID := os.Getenv("INSTANCE_ID")
+	if instanceID == "" {
+		instanceID = "1"
+	}
+	
+	log.SetPrefix(fmt.Sprintf("[Instance %s] ", instanceID))
+	
+
 	// Connect to PostgreSQL
 	db, err := sql.Open("postgres", "postgres://outbox:outbox@localhost:5432/outbox?sslmode=disable")
 	if err != nil {

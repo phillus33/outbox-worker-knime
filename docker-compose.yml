@@ -20,5 +20,21 @@ services:
       - "8222:8222"
     command: "--jetstream"
 
+  app1:
+    build: .
+    environment:
+      - INSTANCE_ID=1
+    depends_on:
+      - postgres
+      - nats
+
+  app2:
+    build: .
+    environment:
+      - INSTANCE_ID=2
+    depends_on:
+      - postgres
+      - nats
+
 volumes:
   postgres_data: 
