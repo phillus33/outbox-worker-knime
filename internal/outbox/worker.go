@@ -36,6 +36,8 @@ type WorkerConfig struct {
 	IsLeader     func() bool
 }
 
+// NewWorker creates a new Worker instance with the given configuration
+// and initializes the stopCh channel for signaling when to stop the worker.
 func NewWorker(config WorkerConfig) *Worker {
 	return &Worker{
 		store:        config.Store,
@@ -47,6 +49,8 @@ func NewWorker(config WorkerConfig) *Worker {
 	}
 }
 
+// Start starts the worker and ensures thread safety for the running state.
+// Starts a new goroutine to run the worker loop.
 func (w *Worker) Start(ctx context.Context) error {
 	w.mu.Lock()
 	if w.running {
@@ -60,6 +64,8 @@ func (w *Worker) Start(ctx context.Context) error {
 	return nil
 }
 
+// Stop gracefully stops the worker by closing the stop channel
+// and setting the running state to false.
 func (w *Worker) Stop() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -72,6 +78,12 @@ func (w *Worker) Stop() {
 	w.running = false
 }
 
+// run is the main worker loop that polls for messages and processes them.
+// It uses a ticker to poll for messages at the specified interval.
+// It listens to three kinds of events:
+// - context done: if the context is canceled, the worker stops
+// - stop channel: if the stop channel is closed, the worker stops
+// - ticker firing: if the ticker fires, the worker polls for messages unless it is not the leader
 func (w *Worker) run(ctx context.Context) {
 	ticker := time.NewTicker(w.pollInterval)
 	defer ticker.Stop()
@@ -94,6 +106,9 @@ func (w *Worker) run(ctx context.Context) {
 	}
 }
 
+// processMessages retrieves and processes pending messages from the store.
+// It ensures sequence number consistency and publishes messages to NATS.
+// It returns an error if there is a sequence number gap or if the message fails to publish.
 func (w *Worker) processMessages(ctx context.Context) error {
 	messages, err := w.store.GetPendingMessages(ctx, w.batchSize)
 	if err != nil {
@@ -121,6 +136,8 @@ func (w *Worker) processMessages(ctx context.Context) error {
 	return nil
 }
 
+// publishMessage attempts to publish a message to NATS with exponential backoff.
+// It retries up to 3 times if the message fails to publish.
 func (w *Worker) publishMessage(ctx context.Context, msg *Message) error {
 	maxRetries := 3
 	for i := 0; i < maxRetries; i++ {
