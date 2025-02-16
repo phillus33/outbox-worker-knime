@@ -46,3 +46,4 @@ build/
 # Project specific
 cmd/example/example
 tmp/
+main
