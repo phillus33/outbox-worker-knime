@@ -7,39 +7,42 @@
 *.dll
 *.so
 *.dylib
+bin/
 
 # Test binary, built with `go test -c`
 *.test
 
-# Output of the go coverage tool, specifically when used with LiteIDE
+# Output of the go coverage tool
 *.out
+coverage.html
 
 # Dependency directories
-# vendor/
+vendor/
 
 # Go workspace file
 go.work
-go.work.sum
 
-# Environment variable files
-.env
-
-# macOS specific files
-.DS_Store
-
-# Log files
-*.log
-
-# Temporary files
-*.tmp
-*.temp
-
-# IDE and editor specific files
+# IDE specific files
 .idea/
 .vscode/
 *.swp
 *.swo
+.DS_Store
 
-# Build directories
-bin/
-obj/
+# Environment files
+.env
+.env.local
+
+# Build output
+dist/
+build/
+
+# Log files
+*.log
+
+# Database files
+*.db
+
+# Project specific
+cmd/example/example
+tmp/
