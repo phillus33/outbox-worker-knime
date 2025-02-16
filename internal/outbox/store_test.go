@@ -7,7 +7,7 @@ import (
 )
 
 func TestPostgresStore_CreateMessage(t *testing.T) {
-	db := setupTestDB(t)
+	db := SetupTestDB(t)
 	defer db.Close()
 
 	store := NewPostgresStore(db)
@@ -43,7 +43,7 @@ func TestPostgresStore_CreateMessage(t *testing.T) {
 }
 
 func TestPostgresStore_GetPendingMessages(t *testing.T) {
-	db := setupTestDB(t)
+	db := SetupTestDB(t)
 	defer db.Close()
 
 	store := NewPostgresStore(db)
